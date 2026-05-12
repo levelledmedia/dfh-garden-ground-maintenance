@@ -33,17 +33,9 @@
       const businessName = 'DFH Garden &amp; GroundMaintenance';
       const storageKey = 'siteTheme_' + businessName.replace(/[^a-zA-Z0-9]/g, '_');
 
-      // Check if this is a preview - if so, always use the default theme
+      // Check if this is a preview - if so, allow localStorage for testing
       // Previews are served from /websites/ path on localhost
       const isPreview = window.location.pathname.includes('/websites/');
-
-      let savedMode = localStorage.getItem(storageKey);
-
-      // For previews, clear any saved preference so you always see the configured default
-      if (isPreview && savedMode !== null) {
-        localStorage.removeItem(storageKey);
-        savedMode = null;
-      }
 
       // Decide which mode to use
       // When defaultTheme is 'color': base is color-mode, toggle switches to dark-mode (no white/light mode)
@@ -51,10 +43,13 @@
       // When defaultTheme is 'light': base is light (no class)
       let activeMode = defaultTheme; // 'light', 'dark', or 'color'
 
-      if (savedMode !== null) {
-        activeMode = savedMode;
-      } else {
-        if (!isPreview) {
+      // Only use localStorage for previews (local testing)
+      // Deployed sites always use the configured default theme
+      if (isPreview) {
+        const savedMode = localStorage.getItem(storageKey);
+        if (savedMode !== null) {
+          activeMode = savedMode;
+        } else {
           localStorage.setItem(storageKey, activeMode);
         }
       }
@@ -278,20 +273,8 @@
           <p class="h-eyebrow">WHAT WE DO</p>
           <h2 class="h2">Our Services</h2>
         </div>
-        <div class="services-nav">
-          <button class="services-nav-btn services-nav-btn--prev" id="servicesPrev">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          </button>
-          <button class="services-nav-btn services-nav-btn--next" id="servicesNext">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </button>
-        </div>
       </div>
-      <div class="services-carousel">
+      <div class="services-carousel services-layout--grid" data-grid-max-rows="1">
         <div class="services-carousel-track" id="servicesTrack">
           <div class="service-card">
             <div class="service-card__image">
@@ -299,7 +282,7 @@
             </div>
             <div class="service-card__content">
               <h3 class="service-card__title">Hedge Reduction</h3>
-              <p class="service-card__desc multiline">Professional trimming and shaping of hedges to promote healthy growth and enhance your garden&#39;s appearance. Regular maintenance options help keep your hedges in top condition.</p>
+              <p class="service-card__desc multiline" data-full-text="Professional trimming and shaping of hedges to promote healthy growth and enhance your garden&#39;s appearance. Regular maintenance options help keep your hedges in top condition.">Professional trimming and shaping of hedges to promote healthy growth and enhance your garden&#39;s appearance. Regular maintenance options help keep your hedges in top condition.</p>
             </div>
           </div>
           <div class="service-card">
@@ -308,7 +291,7 @@
             </div>
             <div class="service-card__content">
               <h3 class="service-card__title">Grass Cuts</h3>
-              <p class="service-card__desc multiline">Comprehensive grass cutting and care services to keep your lawn lush and well-groomed. Flexible scheduling options ensure your lawn remains pristine throughout the seasons.</p>
+              <p class="service-card__desc multiline" data-full-text="Comprehensive grass cutting and care services to keep your lawn lush and well-groomed. Flexible scheduling options ensure your lawn remains pristine throughout the seasons.">Comprehensive grass cutting and care services to keep your lawn lush and well-groomed. Flexible scheduling options ensure your lawn remains pristine throughout the seasons.</p>
             </div>
           </div>
           <div class="service-card">
@@ -317,10 +300,13 @@
             </div>
             <div class="service-card__content">
               <h3 class="service-card__title">Pressure Washing</h3>
-              <p class="service-card__desc multiline">High-pressure cleaning of patios, driveways, and garden furniture to remove dirt and grime effectively. Enhances the appearance of your outdoor areas and prolongs their lifespan.</p>
+              <p class="service-card__desc multiline" data-full-text="High-pressure cleaning of patios, driveways, and garden furniture to remove dirt and grime effectively. Enhances the appearance of your outdoor areas and prolongs their lifespan.">High-pressure cleaning of patios, driveways, and garden furniture to remove dirt and grime effectively. Enhances the appearance of your outdoor areas and prolongs their lifespan.</p>
             </div>
           </div>
         </div>
+      </div>
+      <div class="services-grid-toggle" id="servicesGridToggleWrap" hidden>
+        <button class="btn btn--ghost services-grid-toggle__btn" id="servicesGridToggleBtn" type="button">Show all services</button>
       </div>
     </div>
   </section>
@@ -428,10 +414,10 @@
       <div class="portfolio-carousel">
         <div class="portfolio-carousel-track" id="portfolioTrack">
           <div class="portfolio-carousel-slide">
-            <img src=".&#x2F;images&#x2F;portfolio-placeholder.jpg" alt="Portfolio placeholder 1">
+            <img src=".&#x2F;images&#x2F;portfolio1.jpg" alt="Portfolio project 1">
           </div>
           <div class="portfolio-carousel-slide">
-            <img src=".&#x2F;images&#x2F;portfolio-placeholder.jpg" alt="Portfolio placeholder 2">
+            <img src=".&#x2F;images&#x2F;portfolio2.jpg" alt="Portfolio project 2">
           </div>
           <div class="portfolio-carousel-slide">
             <img src=".&#x2F;images&#x2F;portfolio-placeholder.jpg" alt="Portfolio placeholder 3">
@@ -459,6 +445,7 @@
       </svg>
     </button>
     <img src="" alt="" class="lightbox__image" id="lightboxImage">
+    <video class="lightbox__video" id="lightboxVideo" controls></video>
   </div>
 
   <!-- Before/After Transformation -->
@@ -999,27 +986,57 @@
         </div>
       </div>
       <div class="footer__bottom">
-        <p>© 2026 DFH Garden &amp; GroundMaintenance. All rights reserved. | <a href="#">Privacy Policy</a> |
-          <button class="dark-mode-toggle" id="darkModeToggle" aria-label="Toggle dark mode">
-            <svg class="dark-mode-toggle__icon dark-mode-toggle__icon--sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="5"></circle>
-              <line x1="12" y1="1" x2="12" y2="3"></line>
-              <line x1="12" y1="21" x2="12" y2="23"></line>
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-              <line x1="1" y1="12" x2="3" y2="12"></line>
-              <line x1="21" y1="12" x2="23" y2="12"></line>
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-            </svg>
-            <svg class="dark-mode-toggle__icon dark-mode-toggle__icon--moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-            </svg>
-          </button>
-        </p>
+        <p>© 2026 DFH Garden &amp; GroundMaintenance. All rights reserved. | <a href="#" id="privacyPolicyLink">Privacy Policy</a></p>
       </div>
     </div>
   </footer>
+
+  <!-- Privacy Policy Modal -->
+  <div class="privacy-modal" id="privacyModal">
+    <div class="privacy-modal__overlay"></div>
+    <div class="privacy-modal__content">
+      <button class="privacy-modal__close" id="privacyModalClose">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+      <h2 class="privacy-modal__title">Privacy Policy</h2>
+      <div class="privacy-modal__body">
+        <p><strong>Effective Date:</strong> May 2026</p>
+
+        <h3>Information We Collect</h3>
+        <p>When you submit our quote form, we collect the following personal information:</p>
+        <ul>
+          <li>Your name</li>
+          <li>Email address</li>
+          <li>Phone number</li>
+          <li>Postcode</li>
+          <li>Project details you provide</li>
+        </ul>
+
+        <h3>How We Use Your Information</h3>
+        <p>We use the information you provide to:</p>
+        <ul>
+          <li>Respond to your quote request</li>
+          <li>Contact you regarding our services</li>
+          <li>Provide you with the information you requested</li>
+        </ul>
+
+        <h3>Data Security</h3>
+        <p>We take appropriate measures to protect your personal information from unauthorized access, alteration, or disclosure.</p>
+
+        <h3>Your Rights</h3>
+        <p>You have the right to request access to, correction of, or deletion of your personal information. To exercise these rights, please contact us using the contact information provided on this website.</p>
+
+        <h3>Contact Us</h3>
+        <p>If you have any questions about this Privacy Policy, please contact us at:</p>
+        <p><strong>DFH Garden &amp; GroundMaintenance</strong><br>
+        Email: dfh_groundmaintenance@hotmail.com<br>
+        Phone: 07818 615 123</p>
+      </div>
+    </div>
+  </div>
 
   <script src="script.js"></script>
 

@@ -330,31 +330,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.body.appendChild(script);
   }
 
-  // ========================================
-  // Services Grid: Equal Height Cards
-  // ========================================
-  function equalizeServiceCards() {
-    const cards = document.querySelectorAll('.service-card__content');
-    if (window.innerWidth > 767 && cards.length > 0) {
-      let maxHeight = 0;
-      cards.forEach(card => {
-        card.style.height = 'auto';
-        maxHeight = Math.max(maxHeight, card.offsetHeight);
-      });
-      cards.forEach(card => {
-        card.style.height = maxHeight + 'px';
-      });
-    } else {
-      cards.forEach(card => {
-        card.style.height = 'auto';
-      });
-    }
-  }
-
-  equalizeServiceCards();
-  window.addEventListener('resize', equalizeServiceCards);
-
-  // ========================================
   // FAQ Toggles
   // ========================================
   const faqItems = document.querySelectorAll('.faq-item');
@@ -493,40 +468,181 @@ document.addEventListener('DOMContentLoaded', function() {
   const servicesTrack = document.getElementById('servicesTrack');
   const servicesPrev = document.getElementById('servicesPrev');
   const servicesNext = document.getElementById('servicesNext');
+  const servicesCarousel = servicesTrack ? servicesTrack.parentElement : null;
+  const isServicesGrid = servicesCarousel && servicesCarousel.classList.contains('services-layout--grid');
+  const servicesGridToggleWrap = document.getElementById('servicesGridToggleWrap');
+  const servicesGridToggleBtn = document.getElementById('servicesGridToggleBtn');
 
-  createInfiniteCarousel({
-    track: servicesTrack,
-    prevButton: servicesPrev,
-    nextButton: servicesNext,
-    slideSelector: '.service-card'
-  });
+  function equalizeVisibleServiceRows() {
+    if (!servicesTrack || !isServicesGrid) return;
 
-  // Add drag-to-scroll for services carousel
-  if (servicesTrack) {
-    let isDragging = false;
-    let startX;
-    let currentTranslate = 0;
+    const visibleCards = Array.from(servicesTrack.querySelectorAll('.service-card'))
+      .filter(card => window.getComputedStyle(card).display !== 'none');
 
-    const carousel = servicesTrack.parentElement;
-
-    carousel.addEventListener('mousedown', (e) => {
-      isDragging = true;
-      startX = e.pageX;
-      const transform = servicesTrack.style.transform || 'translateX(0px)';
-      currentTranslate = parseFloat(transform.match(/-?\d+\.?\d*/)?.[0]) || 0;
-      servicesTrack.style.transition = 'none';
+    visibleCards.forEach(card => {
+      card.style.height = 'auto';
     });
 
-    document.addEventListener('mouseup', () => {
-      isDragging = false;
-      servicesTrack.style.transition = '';
+    const rows = [];
+    visibleCards.forEach(card => {
+      const top = card.offsetTop;
+      let row = rows.find(entry => Math.abs(entry.top - top) <= 2);
+      if (!row) {
+        row = { top, cards: [] };
+        rows.push(row);
+      }
+      row.cards.push(card);
     });
 
-    document.addEventListener('mousemove', (e) => {
-      if (!isDragging) return;
-      e.preventDefault();
-      const diff = (e.pageX - startX) * 0.5; // Slow down drag speed
-      servicesTrack.style.transform = `translateX(${currentTranslate + diff}px)`;
+    rows.forEach(row => {
+      const maxHeight = row.cards.reduce((max, card) => Math.max(max, card.offsetHeight), 0);
+      row.cards.forEach(card => {
+        card.style.height = `${maxHeight}px`;
+      });
+    });
+  }
+
+  function setupServicesGridCollapse() {
+    if (!servicesCarousel || !servicesTrack || !isServicesGrid || !servicesGridToggleWrap || !servicesGridToggleBtn) return;
+    const requestedRows = parseInt(servicesCarousel.dataset.gridMaxRows || '1', 10);
+    const maxVisibleRows = Number.isFinite(requestedRows) && requestedRows > 0 ? requestedRows : 1;
+
+    const serviceCards = Array.from(servicesTrack.querySelectorAll('.service-card'));
+    if (serviceCards.length === 0) return;
+
+    // Reset previous state before re-calculating rows.
+    serviceCards.forEach(card => card.classList.remove('services-grid-hidden'));
+    servicesCarousel.classList.remove('services-layout--grid-collapsed');
+
+    const rowTops = [];
+    serviceCards.forEach(card => {
+      const top = card.offsetTop;
+      if (!rowTops.some(existingTop => Math.abs(existingTop - top) <= 2)) {
+        rowTops.push(top);
+      }
+    });
+
+    if (rowTops.length <= maxVisibleRows) {
+      servicesGridToggleWrap.hidden = true;
+      servicesGridToggleBtn.textContent = 'Show all services';
+      return;
+    }
+
+    const lastVisibleRowTop = rowTops[maxVisibleRows - 1];
+    serviceCards.forEach(card => {
+      if (card.offsetTop > lastVisibleRowTop + 2) {
+        card.classList.add('services-grid-hidden');
+      }
+    });
+
+    servicesCarousel.classList.add('services-layout--grid-collapsed');
+    servicesGridToggleWrap.hidden = false;
+    servicesGridToggleBtn.textContent = 'Show all services';
+
+    servicesGridToggleBtn.onclick = () => {
+      servicesCarousel.classList.remove('services-layout--grid-collapsed');
+      servicesGridToggleWrap.hidden = true;
+      setupServiceDescriptionToggle();
+      equalizeVisibleServiceRows();
+    };
+  }
+
+  function setupServiceDescriptionToggle() {
+    const serviceCards = document.querySelectorAll('.service-card');
+
+    serviceCards.forEach(card => {
+      const textElement = card.querySelector('.service-card__desc');
+      if (!textElement) return;
+
+      const lineHeight = parseFloat(window.getComputedStyle(textElement).lineHeight);
+      const lineCount = lineHeight > 0 ? (textElement.scrollHeight / lineHeight) : 0;
+
+      textElement.classList.remove('service-card__desc--truncated');
+
+      const existingToggle = card.querySelector('.service-read-more');
+      if (existingToggle) {
+        existingToggle.remove();
+      }
+
+      // Avoid false positives caused by sub-pixel rounding.
+      if (lineCount <= 4.2) return;
+
+      textElement.classList.add('service-card__desc--truncated');
+
+      const toggleButton = document.createElement('button');
+      toggleButton.type = 'button';
+      toggleButton.className = 'service-read-more';
+      toggleButton.textContent = 'Read more';
+      toggleButton.style.display = 'inline-block';
+
+      toggleButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        const isTruncated = textElement.classList.contains('service-card__desc--truncated');
+        if (isTruncated) {
+          textElement.classList.remove('service-card__desc--truncated');
+          toggleButton.textContent = 'Show less';
+        } else {
+          textElement.classList.add('service-card__desc--truncated');
+          toggleButton.textContent = 'Read more';
+        }
+
+        // Keep cards in the same row aligned after text expansion/collapse.
+        equalizeVisibleServiceRows();
+      });
+
+      textElement.insertAdjacentElement('afterend', toggleButton);
+    });
+  }
+
+  if (!isServicesGrid) {
+    createInfiniteCarousel({
+      track: servicesTrack,
+      prevButton: servicesPrev,
+      nextButton: servicesNext,
+      slideSelector: '.service-card'
+    });
+
+    // Add drag-to-scroll for services carousel
+    if (servicesTrack) {
+      let isDragging = false;
+      let startX;
+      let currentTranslate = 0;
+
+      servicesCarousel.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.pageX;
+        const transform = servicesTrack.style.transform || 'translateX(0px)';
+        currentTranslate = parseFloat(transform.match(/-?\d+\.?\d*/)?.[0]) || 0;
+        servicesTrack.style.transition = 'none';
+      });
+
+      document.addEventListener('mouseup', () => {
+        isDragging = false;
+        servicesTrack.style.transition = '';
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        const diff = (e.pageX - startX) * 0.5;
+        servicesTrack.style.transform = `translateX(${currentTranslate + diff}px)`;
+      });
+    }
+  }
+
+  if (isServicesGrid) {
+    setupServicesGridCollapse();
+    setupServiceDescriptionToggle();
+    equalizeVisibleServiceRows();
+
+    let servicesGridResizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(servicesGridResizeTimeout);
+      servicesGridResizeTimeout = setTimeout(() => {
+        setupServicesGridCollapse();
+        setupServiceDescriptionToggle();
+        equalizeVisibleServiceRows();
+      }, 150);
     });
   }
 
@@ -593,35 +709,68 @@ document.addEventListener('DOMContentLoaded', function() {
   // ========================================
   const lightbox = document.getElementById('lightbox');
   const lightboxImage = document.getElementById('lightboxImage');
+  const lightboxVideo = document.getElementById('lightboxVideo');
   const lightboxClose = document.getElementById('lightboxClose');
-  const portfolioCarouselSlides = document.querySelectorAll('.portfolio-carousel-slide img');
+  lightboxImage.style.display = 'none';
+  lightboxVideo.style.display = 'none';
 
-  portfolioCarouselSlides.forEach(img => {
-    img.addEventListener('click', () => {
-      lightboxImage.src = img.src;
-      lightboxImage.alt = img.alt;
-      lightbox.classList.add('active');
-      document.body.style.overflow = 'hidden';
-    });
-  });
-
-  lightboxClose.addEventListener('click', () => {
+  const closeLightbox = () => {
     lightbox.classList.remove('active');
     document.body.style.overflow = '';
+    lightboxImage.style.display = 'none';
+    lightboxImage.src = '';
+    lightboxVideo.style.display = 'none';
+    lightboxVideo.pause();
+    lightboxVideo.src = '';
+  };
+
+  portfolioTrack.addEventListener('click', (e) => {
+    const slide = e.target.closest('.portfolio-carousel-slide');
+    if (!slide) return;
+
+    const video = slide.querySelector('video');
+    if (video) {
+      lightboxImage.style.display = 'none';
+      lightboxImage.src = '';
+      lightboxVideo.style.display = 'block';
+      lightboxVideo.src = video.src;
+      lightbox.classList.add('active');
+      document.body.style.overflow = 'hidden';
+      lightboxVideo.play();
+      return;
+    }
+
+    const image = slide.querySelector('img');
+    if (!image) return;
+    lightboxVideo.style.display = 'none';
+    lightboxVideo.pause();
+    lightboxVideo.src = '';
+    lightboxImage.style.display = 'block';
+    lightboxImage.src = image.src;
+    lightboxImage.alt = image.alt;
+    lightbox.classList.add('active');
+    document.body.style.overflow = 'hidden';
   });
+
+  lightboxClose.addEventListener('click', closeLightbox);
 
   lightbox.addEventListener('click', (e) => {
     if (e.target === lightbox) {
-      lightbox.classList.remove('active');
-      document.body.style.overflow = '';
+      closeLightbox();
     }
+  });
+
+  // Seek to 3s so video thumbnails show a usable frame.
+  document.querySelectorAll('#portfolioTrack video[preload="metadata"]').forEach(v => {
+    const seek = () => { v.currentTime = Math.min(3, v.duration || 3); };
+    if (v.readyState >= 1) seek();
+    else v.addEventListener('loadedmetadata', seek, { once: true });
   });
 
   // Close on Escape key
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && lightbox.classList.contains('active')) {
-      lightbox.classList.remove('active');
-      document.body.style.overflow = '';
+      closeLightbox();
     }
   });
 
@@ -677,54 +826,38 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // ========================================
-  // Dark Mode Toggle
+  // Privacy Policy Modal
   // ========================================
-  const darkModeToggle = document.getElementById('darkModeToggle');
+  const privacyModal = document.getElementById('privacyModal');
+  const privacyPolicyLink = document.getElementById('privacyPolicyLink');
+  const privacyModalClose = document.getElementById('privacyModalClose');
 
-  if (darkModeToggle) {
-    // Get site-specific storage key (must match the key in head script)
-    const getStorageKey = () => {
-      const metaBusinessName = document.querySelector('title')?.textContent?.split(' - ')[0] || 'default';
-      return 'siteTheme_' + metaBusinessName.replace(/[^a-zA-Z0-9]/g, '_');
-    };
+  if (privacyPolicyLink && privacyModal && privacyModalClose) {
+    privacyPolicyLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      privacyModal.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    });
 
-    // Detect the site's base theme (color, light, or dark)
-    const defaultTheme = '{{default_theme}}';
+    privacyModalClose.addEventListener('click', () => {
+      privacyModal.classList.remove('active');
+      document.body.style.overflow = '';
+    });
 
-    darkModeToggle.addEventListener('click', () => {
-      const storageKey = getStorageKey();
+    // Close on overlay click
+    const privacyOverlay = privacyModal.querySelector('.privacy-modal__overlay');
+    if (privacyOverlay) {
+      privacyOverlay.addEventListener('click', () => {
+        privacyModal.classList.remove('active');
+        document.body.style.overflow = '';
+      });
+    }
 
-      // Remove init class on first toggle to allow transitions
-      document.documentElement.classList.remove('dark-mode-init');
-
-      if (defaultTheme === 'color') {
-        // Color mode sites: toggle between color-mode and dark-mode (no plain light mode)
-        const isDark = document.documentElement.classList.contains('dark-mode');
-        if (isDark) {
-          // Switch back to color mode
-          document.documentElement.classList.remove('dark-mode');
-          document.body.classList.remove('dark-mode');
-          document.documentElement.classList.add('color-mode');
-          document.body.classList.add('color-mode');
-          localStorage.setItem(storageKey, 'color');
-        } else {
-          // Switch to dark mode
-          document.documentElement.classList.remove('color-mode');
-          document.body.classList.remove('color-mode');
-          document.documentElement.classList.add('dark-mode');
-          document.body.classList.add('dark-mode');
-          localStorage.setItem(storageKey, 'dark');
-        }
-      } else {
-        // Light/Dark mode sites: toggle between light and dark
-        document.documentElement.classList.toggle('dark-mode');
-        document.body.classList.toggle('dark-mode');
-
-        if (document.documentElement.classList.contains('dark-mode')) {
-          localStorage.setItem(storageKey, 'dark');
-        } else {
-          localStorage.setItem(storageKey, 'light');
-        }
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && privacyModal.classList.contains('active')) {
+        privacyModal.classList.remove('active');
+        document.body.style.overflow = '';
       }
     });
   }
